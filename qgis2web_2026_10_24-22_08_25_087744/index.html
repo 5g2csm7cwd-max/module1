@@ -7,26 +7,21 @@
         <meta name="mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <link rel="stylesheet" href="css/leaflet.css">
-        <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
         <link rel="stylesheet" href="css/qgis2web.css">
         <link rel="stylesheet" href="css/fontawesome-all.min.css">
         <link rel="stylesheet" href="css/MarkerCluster.css">
         <link rel="stylesheet" href="css/MarkerCluster.Default.css">
         <link rel="stylesheet" href="css/leaflet.photon.css">
+        <!-- ❌ 移除：css/L.Control.Layers.Tree.css (未使用) -->
         <style>
-        html, body, #map {
-            width: 100%;
-            height: 100%;
-            padding: 0;
-            margin: 0;
-        }
+        html, body, #map { width: 100%; height: 100%; padding: 0; margin: 0; }
         #map { background: #f2efe9; }
         #error-overlay {
             position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
             background: rgba(200,30,30,0.95); color: #fff;
-            padding: 10px 16px; font: 13px/1.5 monospace;
+            padding: 10px 16px; font: 12px/1.5 monospace;
             border-radius: 4px; display: none; z-index: 9999;
-            max-width: 90%; box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            max-width: 92%; box-shadow: 0 2px 8px rgba(0,0,0,0.4);
             white-space: pre-wrap;
         }
         </style>
@@ -36,7 +31,6 @@
         <div id="map"></div>
         <div id="error-overlay"></div>
 
-        <!-- 錯誤顯示：避免「一片空白」卻不知道原因 -->
         <script>
         window.addEventListener('error', function (e) {
             var el = document.getElementById('error-overlay');
@@ -47,15 +41,13 @@
                 el.textContent += '❌ 無法載入: ' + (t.src || t.href) + '\n';
             } else if (e.message) {
                 el.style.display = 'block';
-                el.textContent += '❌ ' + e.message + '  (' +
-                    (e.filename || '') + ':' + (e.lineno || '') + ')\n';
+                el.textContent += '❌ ' + e.message + '  (' + (e.filename || '') + ':' + (e.lineno || '') + ')\n';
             }
         }, true);
         </script>
 
-        <!-- 第三方函式庫 -->
+        <!-- 第三方庫 -->
         <script src="js/leaflet.js"></script>
-        <script src="js/L.Control.Layers.Tree.min.js"></script>
         <script src="js/leaflet.rotatedMarker.js"></script>
         <script src="js/leaflet.pattern.js"></script>
         <script src="js/leaflet-hash.js"></script>
@@ -65,25 +57,21 @@
         <script src="js/labels.js"></script>
         <script src="js/leaflet.photon.js"></script>
         <script src="js/leaflet.markercluster.js"></script>
+        <!-- ❌ 移除：js/L.Control.Layers.Tree.min.js (未使用) -->
 
-        <!-- 資料 -->
+        <!-- 資料 (⚠️ 請確保這 3 個檔案已在 GitHub 的 data/ 目錄) -->
         <script src="data/wek3_tut_points_19.js"></script>
         <script src="data/week2_tut_point_20.js"></script>
         <script src="data/module1_with_coordinates_21.js"></script>
 
         <script>
         (function () {
-            // ==== 修正 1：不再 fitBounds 到整個地球，改以香港為中心 ====
             var map = L.map('map', {
-                zoomControl: false,
-                maxZoom: 28,
-                minZoom: 1,
-                center: [22.286, 113.928],
-                zoom: 13
+                zoomControl: false, maxZoom: 28, minZoom: 1,
+                center: [22.286, 113.928], zoom: 13
             });
 
-            try { new L.Hash(map); } catch (e) { console.warn('L.Hash 未載入:', e); }
-
+            try { new L.Hash(map); } catch (e) { console.warn('L.Hash:', e); }
             map.attributionControl.setPrefix('<a href="https://github.com/qgis2web/qgis2web" target="_blank">qgis2web</a> &middot; <a href="https://leafletjs.com">Leaflet</a> &middot; <a href="https://qgis.org">QGIS</a>');
 
             var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
@@ -101,7 +89,6 @@
                 }
                 return tempDiv.innerHTML;
             }
-
             function addClassToPopupIfMedia(content, popup) {
                 var tempDiv = document.createElement('div');
                 tempDiv.innerHTML = content;
@@ -112,51 +99,29 @@
                         popup._contentNode.classList.add('media');
                         var img = popup._contentNode.querySelector('td img');
                         if (img) {
-                            if (img.complete && img.naturalHeight > 0) {
-                                popup.update();
-                            } else {
-                                img.addEventListener('load', function () { popup.update(); });
-                                img.addEventListener('error', function () { popup.update(); });
-                            }
+                            if (img.complete && img.naturalHeight > 0) popup.update();
+                            else { img.addEventListener('load', function(){popup.update();}); img.addEventListener('error', function(){popup.update();}); }
                         }
                     } else if (/\.(mp3|wav|ogg|aac)$/i.test(src)) {
-                        var audio = document.createElement('audio');
-                        audio.controls = true;
-                        audio.src = src;
-                        imgTd.parentNode.replaceChild(audio, imgTd);
+                        var a = document.createElement('audio'); a.controls = true; a.src = src;
+                        imgTd.parentNode.replaceChild(a, imgTd);
                         popup._contentNode.classList.add('media');
-                        setTimeout(function () {
-                            popup.setContent(tempDiv.innerHTML);
-                            popup.update();
-                        }, 10);
+                        setTimeout(function(){popup.setContent(tempDiv.innerHTML); popup.update();}, 10);
                     } else if (/\.(mp4|webm|ogg|mov)$/i.test(src)) {
-                        var video = document.createElement('video');
-                        video.controls = true;
-                        video.src = src;
-                        video.style.width = "400px";
-                        video.style.height = "300px";
-                        video.style.maxHeight = "60vh";
-                        video.style.maxWidth = "60vw";
-                        imgTd.parentNode.replaceChild(video, imgTd);
+                        var v = document.createElement('video'); v.controls = true; v.src = src;
+                        v.style.maxHeight = "60vh"; v.style.maxWidth = "60vw";
+                        imgTd.parentNode.replaceChild(v, imgTd);
                         popup._contentNode.classList.add('media');
-                        video.addEventListener('loadedmetadata', function () { popup.update(); });
-                        setTimeout(function () {
-                            popup.setContent(tempDiv.innerHTML);
-                            popup.update();
-                        }, 10);
-                    } else {
-                        popup._contentNode.classList.remove('media');
-                    }
-                } else {
-                    popup._contentNode.classList.remove('media');
-                }
+                        v.addEventListener('loadedmetadata', function(){popup.update();});
+                        setTimeout(function(){popup.setContent(tempDiv.innerHTML); popup.update();}, 10);
+                    } else { popup._contentNode.classList.remove('media'); }
+                } else { popup._contentNode.classList.remove('media'); }
             }
 
-            var zoomControl = L.control.zoom({position: 'topleft'}).addTo(map);
+            L.control.zoom({position: 'topleft'}).addTo(map);
             var bounds_group = new L.featureGroup([]);
-            function setBounds() {}
 
-            // ===== Image Overlays =====
+            // ===== 19 個 ImageOverlay =====
             var imgOverlays = [
                 ['pane_9SEA_0','data/9SEA_0.png',[[22.273607952312364,113.89769308407159],[22.300758044667496,113.93413201704129]],400],
                 ['pane_9SEB_1','data/9SEB_1.png',[[22.273666401328807,113.93408524462212],[22.300808410150857,113.9705172786357]],401],
@@ -186,242 +151,183 @@
                 map.addLayer(layer);
             });
 
-            // ===== Layer 1: 红点 =====
+            // ===== Layer 1：紅點 =====
             function pop_wek3_tut_points_19(feature, layer) {
-                var popupContent = '<table>' +
-                    '<tr><td colspan="2">' + (feature.properties['Dot id'] !== null ? autolinker.link(String(feature.properties['Dot id']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['Place'] !== null ? autolinker.link(String(feature.properties['Place']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['Locality'] !== null ? autolinker.link(String(feature.properties['Locality']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['Zone'] !== null ? autolinker.link(String(feature.properties['Zone']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['Easting'] !== null ? autolinker.link(String(feature.properties['Easting']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['Northing'] !== null ? autolinker.link(String(feature.properties['Northing']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['Longitude_WGS84'] !== null ? autolinker.link(String(feature.properties['Longitude_WGS84']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['Latitude_WGS84'] !== null ? autolinker.link(String(feature.properties['Latitude_WGS84']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                var p = feature.properties;
+                var c = '<table>' +
+                    '<tr><td colspan="2">' + (p['Dot id'] != null ? autolinker.link(String(p['Dot id'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['Place'] != null ? autolinker.link(String(p['Place'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['Locality'] != null ? autolinker.link(String(p['Locality'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['Zone'] != null ? autolinker.link(String(p['Zone'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['Easting'] != null ? autolinker.link(String(p['Easting'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['Northing'] != null ? autolinker.link(String(p['Northing'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['Longitude_WGS84'] != null ? autolinker.link(String(p['Longitude_WGS84'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['Latitude_WGS84'] != null ? autolinker.link(String(p['Latitude_WGS84'])) : '') + '</td></tr>' +
                     '</table>';
-                var content = removeEmptyRowsFromPopupContent(popupContent, feature);
-                layer.on('popupopen', function (e) { addClassToPopupIfMedia(content, e.popup); });
+                var content = removeEmptyRowsFromPopupContent(c, feature);
+                layer.on('popupopen', function(e){ addClassToPopupIfMedia(content, e.popup); });
                 layer.bindPopup(content, {maxHeight: 400});
-            }
-            function style_wek3_tut_points_19_0() {
-                return {
-                    pane: 'pane_wek3_tut_points_19',
-                    radius: 5.2, opacity: 1, color: 'rgba(128,17,25,1.0)',
-                    dashArray: '', lineCap: 'butt', lineJoin: 'miter', weight: 2.0,
-                    fill: true, fillOpacity: 1, fillColor: 'rgba(219,30,42,1.0)',
-                    interactive: true
-                };
             }
             map.createPane('pane_wek3_tut_points_19');
             map.getPane('pane_wek3_tut_points_19').style.zIndex = 419;
-            map.getPane('pane_wek3_tut_points_19').style['mix-blend-mode'] = 'normal';
 
-            // ==== 修正 2：資料未載入時，不要讓整頁死掉 ====
             if (typeof json_wek3_tut_points_19 === 'undefined') {
-                console.warn('⚠️ data/wek3_tut_points_19.js 未載入');
-                json_wek3_tut_points_19 = {type: 'FeatureCollection', features: []};
+                console.warn('⚠️ data/wek3_tut_points_19.js 未載入 → 使用空資料集');
+                window.json_wek3_tut_points_19 = {type:'FeatureCollection', features:[]};
             }
             var layer_wek3_tut_points_19 = new L.geoJson(json_wek3_tut_points_19, {
-                attribution: '', interactive: true,
-                dataVar: 'json_wek3_tut_points_19',
-                layerName: 'layer_wek3_tut_points_19',
                 pane: 'pane_wek3_tut_points_19',
                 onEachFeature: pop_wek3_tut_points_19,
                 pointToLayer: function (feature, latlng) {
-                    return L.circleMarker(latlng, style_wek3_tut_points_19_0(feature));
+                    return L.circleMarker(latlng, {
+                        pane: 'pane_wek3_tut_points_19',
+                        radius: 5.2, opacity: 1, color: 'rgba(128,17,25,1.0)',
+                        weight: 2.0, fill: true, fillOpacity: 1, fillColor: 'rgba(219,30,42,1.0)'
+                    });
                 }
             });
             bounds_group.addLayer(layer_wek3_tut_points_19);
             map.addLayer(layer_wek3_tut_points_19);
 
-            // ===== Layer 2: 绿点 (cluster) =====
+            // ===== Layer 2：綠點 cluster =====
             function pop_week2_tut_point_20(feature, layer) {
-                var popupContent = '<table>' +
-                    '<tr><td colspan="2">' + (feature.properties['照片流水號'] !== null ? autolinker.link(String(feature.properties['照片流水號']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['box no.'] !== null ? autolinker.link(String(feature.properties['box no.']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['照片總編號'] !== null ? autolinker.link(String(feature.properties['照片總編號']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['指攝日期'] !== null ? autolinker.link(String(feature.properties['指攝日期']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['底片編號'] !== null ? autolinker.link(String(feature.properties['底片編號']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['notes'] !== null ? autolinker.link(String(feature.properties['notes']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['拍攝者'] !== null ? autolinker.link(String(feature.properties['拍攝者']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['經手人'] !== null ? autolinker.link(String(feature.properties['經手人']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['整理日期'] !== null ? autolinker.link(String(feature.properties['整理日期']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['photo_subject'] !== null ? autolinker.link(String(feature.properties['photo_subject']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['place_name'] !== null ? autolinker.link(String(feature.properties['place_name']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['latitude'] !== null ? autolinker.link(String(feature.properties['latitude']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['longitude'] !== null ? autolinker.link(String(feature.properties['longitude']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['location_precision'] !== null ? autolinker.link(String(feature.properties['location_precision']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['location_source'] !== null ? autolinker.link(String(feature.properties['location_source']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['location_note'] !== null ? autolinker.link(String(feature.properties['location_note']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['cleaning_note'] !== null ? autolinker.link(String(feature.properties['cleaning_note']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                var p = feature.properties;
+                var c = '<table>' +
+                    '<tr><td colspan="2">' + (p['照片流水號'] != null ? autolinker.link(String(p['照片流水號'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['box no.'] != null ? autolinker.link(String(p['box no.'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['照片總編號'] != null ? autolinker.link(String(p['照片總編號'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['指攝日期'] != null ? autolinker.link(String(p['指攝日期'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['底片編號'] != null ? autolinker.link(String(p['底片編號'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['notes'] != null ? autolinker.link(String(p['notes'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['拍攝者'] != null ? autolinker.link(String(p['拍攝者'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['經手人'] != null ? autolinker.link(String(p['經手人'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['整理日期'] != null ? autolinker.link(String(p['整理日期'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['photo_subject'] != null ? autolinker.link(String(p['photo_subject'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['place_name'] != null ? autolinker.link(String(p['place_name'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['latitude'] != null ? autolinker.link(String(p['latitude'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['longitude'] != null ? autolinker.link(String(p['longitude'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['location_precision'] != null ? autolinker.link(String(p['location_precision'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['location_source'] != null ? autolinker.link(String(p['location_source'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['location_note'] != null ? autolinker.link(String(p['location_note'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['cleaning_note'] != null ? autolinker.link(String(p['cleaning_note'])) : '') + '</td></tr>' +
                     '</table>';
-                var content = removeEmptyRowsFromPopupContent(popupContent, feature);
-                layer.on('popupopen', function (e) { addClassToPopupIfMedia(content, e.popup); });
+                var content = removeEmptyRowsFromPopupContent(c, feature);
+                layer.on('popupopen', function(e){ addClassToPopupIfMedia(content, e.popup); });
                 layer.bindPopup(content, {maxHeight: 400});
-            }
-            function style_week2_tut_point_20_0() {
-                return {
-                    pane: 'pane_week2_tut_point_20',
-                    radius: 5.2, opacity: 1, color: 'rgba(61,128,53,1.0)',
-                    dashArray: '', lineCap: 'butt', lineJoin: 'miter', weight: 2.0,
-                    fill: true, fillOpacity: 1, fillColor: 'rgba(95,220,81,1.0)',
-                    interactive: true
-                };
             }
             map.createPane('pane_week2_tut_point_20');
             map.getPane('pane_week2_tut_point_20').style.zIndex = 420;
-            map.getPane('pane_week2_tut_point_20').style['mix-blend-mode'] = 'normal';
 
             if (typeof json_week2_tut_point_20 === 'undefined') {
-                console.warn('⚠️ data/week2_tut_point_20.js 未載入');
-                json_week2_tut_point_20 = {type: 'FeatureCollection', features: []};
+                console.warn('⚠️ data/week2_tut_point_20.js 未載入 → 使用空資料集');
+                window.json_week2_tut_point_20 = {type:'FeatureCollection', features:[]};
             }
             var layer_week2_tut_point_20 = new L.geoJson(json_week2_tut_point_20, {
-                attribution: '', interactive: true,
-                dataVar: 'json_week2_tut_point_20',
-                layerName: 'layer_week2_tut_point_20',
                 pane: 'pane_week2_tut_point_20',
                 onEachFeature: pop_week2_tut_point_20,
                 pointToLayer: function (feature, latlng) {
-                    return L.circleMarker(latlng, style_week2_tut_point_20_0(feature));
+                    return L.circleMarker(latlng, {
+                        pane: 'pane_week2_tut_point_20',
+                        radius: 5.2, opacity: 1, color: 'rgba(61,128,53,1.0)',
+                        weight: 2.0, fill: true, fillOpacity: 1, fillColor: 'rgba(95,220,81,1.0)'
+                    });
                 }
             });
             var cluster_week2_tut_point_20 = new L.MarkerClusterGroup({
-                showCoverageOnHover: false,
-                spiderfyDistanceMultiplier: 2
+                showCoverageOnHover: false, spiderfyDistanceMultiplier: 2
             });
             cluster_week2_tut_point_20.addLayer(layer_week2_tut_point_20);
             bounds_group.addLayer(layer_week2_tut_point_20);
             cluster_week2_tut_point_20.addTo(map);
 
-            // ===== Layer 3: 蓝点 (cluster) =====
+            // ===== Layer 3：藍點 cluster =====
             function pop_module1_with_coordinates_21(feature, layer) {
-                var popupContent = '<table>' +
-                    '<tr><td colspan="2">' + (feature.properties['record_no'] !== null ? autolinker.link(String(feature.properties['record_no']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['box_no'] !== null ? autolinker.link(String(feature.properties['box_no']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['photo_no'] !== null ? '<img src="images/' + String(feature.properties['photo_no']).replace(/[\\/:]/g, '_').trim().replace(/'/g, "'").replace(/"/g, '&quot;') + '">' : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['remarks_raw'] !== null ? autolinker.link(String(feature.properties['remarks_raw']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['photo_path'] !== null ? autolinker.link(String(feature.properties['photo_path']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['Location_note'] !== null ? autolinker.link(String(feature.properties['Location_note']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['latitude'] !== null ? autolinker.link(String(feature.properties['latitude']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['longitude'] !== null ? autolinker.link(String(feature.properties['longitude']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['coordinate_source'] !== null ? autolinker.link(String(feature.properties['coordinate_source']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['coordinate_confidence'] !== null ? autolinker.link(String(feature.properties['coordinate_confidence']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['coordinate_note'] !== null ? autolinker.link(String(feature.properties['coordinate_note']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['check'] !== null ? autolinker.link(String(feature.properties['check']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
-                    '<tr><td colspan="2">' + (feature.properties['clearing_note'] !== null ? autolinker.link(String(feature.properties['clearing_note']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                var p = feature.properties;
+                var c = '<table>' +
+                    '<tr><td colspan="2">' + (p['record_no'] != null ? autolinker.link(String(p['record_no'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['box_no'] != null ? autolinker.link(String(p['box_no'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['photo_no'] != null ? '<img src="images/' + String(p['photo_no']).replace(/[\\/:]/g, '_').trim().replace(/"/g, '&quot;') + '">' : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['remarks_raw'] != null ? autolinker.link(String(p['remarks_raw'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['photo_path'] != null ? autolinker.link(String(p['photo_path'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['Location_note'] != null ? autolinker.link(String(p['Location_note'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['latitude'] != null ? autolinker.link(String(p['latitude'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['longitude'] != null ? autolinker.link(String(p['longitude'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['coordinate_source'] != null ? autolinker.link(String(p['coordinate_source'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['coordinate_confidence'] != null ? autolinker.link(String(p['coordinate_confidence'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['coordinate_note'] != null ? autolinker.link(String(p['coordinate_note'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['check'] != null ? autolinker.link(String(p['check'])) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (p['clearing_note'] != null ? autolinker.link(String(p['clearing_note'])) : '') + '</td></tr>' +
                     '</table>';
-                var content = removeEmptyRowsFromPopupContent(popupContent, feature);
-                layer.on('popupopen', function (e) { addClassToPopupIfMedia(content, e.popup); });
+                var content = removeEmptyRowsFromPopupContent(c, feature);
+                layer.on('popupopen', function(e){ addClassToPopupIfMedia(content, e.popup); });
                 layer.bindPopup(content, {maxHeight: 400});
-            }
-            function style_module1_with_coordinates_21_0() {
-                return {
-                    pane: 'pane_module1_with_coordinates_21',
-                    radius: 5.2, opacity: 1, color: 'rgba(61,128,53,1.0)',
-                    dashArray: '', lineCap: 'butt', lineJoin: 'miter', weight: 2.0,
-                    fill: true, fillOpacity: 1, fillColor: 'rgba(0,237,251,1.0)',
-                    interactive: true
-                };
             }
             map.createPane('pane_module1_with_coordinates_21');
             map.getPane('pane_module1_with_coordinates_21').style.zIndex = 421;
-            map.getPane('pane_module1_with_coordinates_21').style['mix-blend-mode'] = 'normal';
 
             if (typeof json_module1_with_coordinates_21 === 'undefined') {
-                console.warn('⚠️ data/module1_with_coordinates_21.js 未載入');
-                json_module1_with_coordinates_21 = {type: 'FeatureCollection', features: []};
+                console.warn('⚠️ data/module1_with_coordinates_21.js 未載入 → 使用空資料集');
+                window.json_module1_with_coordinates_21 = {type:'FeatureCollection', features:[]};
             }
             var layer_module1_with_coordinates_21 = new L.geoJson(json_module1_with_coordinates_21, {
-                attribution: '', interactive: true,
-                dataVar: 'json_module1_with_coordinates_21',
-                layerName: 'layer_module1_with_coordinates_21',
                 pane: 'pane_module1_with_coordinates_21',
                 onEachFeature: pop_module1_with_coordinates_21,
                 pointToLayer: function (feature, latlng) {
-                    return L.circleMarker(latlng, style_module1_with_coordinates_21_0(feature));
+                    return L.circleMarker(latlng, {
+                        pane: 'pane_module1_with_coordinates_21',
+                        radius: 5.2, opacity: 1, color: 'rgba(61,128,53,1.0)',
+                        weight: 2.0, fill: true, fillOpacity: 1, fillColor: 'rgba(0,237,251,1.0)'
+                    });
                 }
             });
             var cluster_module1_with_coordinates_21 = new L.MarkerClusterGroup({
-                showCoverageOnHover: false,
-                spiderfyDistanceMultiplier: 2
+                showCoverageOnHover: false, spiderfyDistanceMultiplier: 2
             });
             cluster_module1_with_coordinates_21.addLayer(layer_module1_with_coordinates_21);
             bounds_group.addLayer(layer_module1_with_coordinates_21);
             cluster_module1_with_coordinates_21.addTo(map);
 
-            setBounds();
-
-            // ===== 標籤綁定 =====
+            // ===== 標籤 =====
             var i = 0;
             layer_wek3_tut_points_19.eachLayer(function (layer) {
-                layer.bindTooltip(
-                    (layer.feature.properties['Locality'] !== null
-                        ? '<div style="color:#323232;font-size:6pt;font-weight:bold;font-style:italic;font-family:\'Times New Roman\',sans-serif;">' + layer.feature.properties['Locality'] + '</div>'
-                        : ''),
-                    {permanent: true, offset: [0, -16], className: 'css_wek3_tut_points_19'}
-                );
-                labels.push(layer);
-                totalMarkers += 1;
-                layer.added = true;
-                addLabel(layer, i);
-                i++;
+                var t = layer.feature.properties['Locality'];
+                layer.bindTooltip(t != null ? '<div style="color:#323232;font-size:6pt;font-weight:bold;font-style:italic;font-family:\'Times New Roman\',sans-serif;">' + t + '</div>' : '',
+                    {permanent: true, offset: [0, -16], className: 'css_wek3_tut_points_19'});
+                labels.push(layer); totalMarkers += 1; layer.added = true; addLabel(layer, i); i++;
             });
-
             i = 0;
             layer_week2_tut_point_20.eachLayer(function (layer) {
-                layer.bindTooltip(
-                    (layer.feature.properties['place_name'] !== null
-                        ? '<div style="color:#323232;font-size:6pt;font-weight:bold;font-style:italic;font-family:\'Times New Roman\',sans-serif;">' + layer.feature.properties['place_name'] + '</div>'
-                        : ''),
-                    {permanent: true, offset: [0, -16], className: 'css_week2_tut_point_20'}
-                );
-                labels.push(layer);
-                totalMarkers += 1;
-                layer.added = true;
-                addLabel(layer, i);
-                i++;
+                var t = layer.feature.properties['place_name'];
+                layer.bindTooltip(t != null ? '<div style="color:#323232;font-size:6pt;font-weight:bold;font-style:italic;font-family:\'Times New Roman\',sans-serif;">' + t + '</div>' : '',
+                    {permanent: true, offset: [0, -16], className: 'css_week2_tut_point_20'});
+                labels.push(layer); totalMarkers += 1; layer.added = true; addLabel(layer, i); i++;
             });
-
             i = 0;
             layer_module1_with_coordinates_21.eachLayer(function (layer) {
-                layer.bindTooltip(
-                    (layer.feature.properties['Location_note'] !== null
-                        ? '<div style="color:#323232;font-size:6pt;font-weight:bold;font-style:italic;font-family:\'Times New Roman\',sans-serif;">' + layer.feature.properties['Location_note'] + '</div>'
-                        : ''),
-                    {permanent: true, offset: [0, -16], className: 'css_module1_with_coordinates_21'}
-                );
-                labels.push(layer);
-                totalMarkers += 1;
-                layer.added = true;
-                addLabel(layer, i);
-                i++;
+                var t = layer.feature.properties['Location_note'];
+                layer.bindTooltip(t != null ? '<div style="color:#323232;font-size:6pt;font-weight:bold;font-style:italic;font-family:\'Times New Roman\',sans-serif;">' + t + '</div>' : '',
+                    {permanent: true, offset: [0, -16], className: 'css_module1_with_coordinates_21'});
+                labels.push(layer); totalMarkers += 1; layer.added = true; addLabel(layer, i); i++;
             });
 
             L.ImageOverlay.include({
                 getBounds: function () { return this._bounds; }
             });
 
-            resetLabels([layer_wek3_tut_points_19, layer_week2_tut_point_20, layer_module1_with_coordinates_21]);
-            map.on("zoomend", function () {
+            function refresh() {
                 resetLabels([layer_wek3_tut_points_19, layer_week2_tut_point_20, layer_module1_with_coordinates_21]);
-            });
-            map.on("layeradd", function () {
-                resetLabels([layer_wek3_tut_points_19, layer_week2_tut_point_20, layer_module1_with_coordinates_21]);
-            });
-            map.on("layerremove", function () {
-                resetLabels([layer_wek3_tut_points_19, layer_week2_tut_point_20, layer_module1_with_coordinates_21]);
-            });
+            }
+            refresh();
+            map.on("zoomend", refresh);
+            map.on("layeradd", refresh);
+            map.on("layerremove", refresh);
 
-            // 保險：資料都載入後再 fitBounds 到實際內容範圍
             try {
                 if (bounds_group.getLayers().length > 0) {
                     var b = bounds_group.getBounds();
-                    if (b.isValid()) {
-                        map.fitBounds(b, {padding: [20, 20]});
-                    }
+                    if (b.isValid()) map.fitBounds(b, {padding: [20, 20]});
                 }
-            } catch (e) { console.warn('fitBounds 失敗', e); }
-
+            } catch (e) { console.warn('fitBounds:', e); }
         })();
         </script>
     </body>
