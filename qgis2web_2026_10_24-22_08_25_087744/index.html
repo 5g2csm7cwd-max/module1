@@ -1,28 +1,428 @@
-index.html
-css/
-  leaflet.css
-  L.Control.Layers.Tree.css
-  qgis2web.css
-  fontawesome-all.min.css
-  MarkerCluster.css
-  MarkerCluster.Default.css
-  leaflet.photon.css
-js/
-  leaflet.js
-  L.Control.Layers.Tree.min.js
-  leaflet.rotatedMarker.js
-  leaflet.pattern.js
-  leaflet-hash.js
-  Autolinker.min.js
-  rbush.min.js
-  labelgun.min.js
-  labels.js
-  leaflet.photon.js
-  leaflet.markercluster.js
-data/
-  wek3_tut_points_19.js
-  week2_tut_point_20.js
-  module1_with_coordinates_21.js
-  9SEA_0.png ... 63D9SE8C00_18.png (所有 19 張 png)
-images/
-  (popup 用到的照片)
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <link rel="stylesheet" href="css/leaflet.css">
+        <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
+        <link rel="stylesheet" href="css/qgis2web.css">
+        <link rel="stylesheet" href="css/fontawesome-all.min.css">
+        <link rel="stylesheet" href="css/MarkerCluster.css">
+        <link rel="stylesheet" href="css/MarkerCluster.Default.css">
+        <link rel="stylesheet" href="css/leaflet.photon.css">
+        <style>
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+        }
+        #map { background: #f2efe9; }
+        #error-overlay {
+            position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+            background: rgba(200,30,30,0.95); color: #fff;
+            padding: 10px 16px; font: 13px/1.5 monospace;
+            border-radius: 4px; display: none; z-index: 9999;
+            max-width: 90%; box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            white-space: pre-wrap;
+        }
+        </style>
+        <title></title>
+    </head>
+    <body>
+        <div id="map"></div>
+        <div id="error-overlay"></div>
+
+        <!-- 錯誤顯示：避免「一片空白」卻不知道原因 -->
+        <script>
+        window.addEventListener('error', function (e) {
+            var el = document.getElementById('error-overlay');
+            if (!el) return;
+            var t = e.target;
+            if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
+                el.style.display = 'block';
+                el.textContent += '❌ 無法載入: ' + (t.src || t.href) + '\n';
+            } else if (e.message) {
+                el.style.display = 'block';
+                el.textContent += '❌ ' + e.message + '  (' +
+                    (e.filename || '') + ':' + (e.lineno || '') + ')\n';
+            }
+        }, true);
+        </script>
+
+        <!-- 第三方函式庫 -->
+        <script src="js/leaflet.js"></script>
+        <script src="js/L.Control.Layers.Tree.min.js"></script>
+        <script src="js/leaflet.rotatedMarker.js"></script>
+        <script src="js/leaflet.pattern.js"></script>
+        <script src="js/leaflet-hash.js"></script>
+        <script src="js/Autolinker.min.js"></script>
+        <script src="js/rbush.min.js"></script>
+        <script src="js/labelgun.min.js"></script>
+        <script src="js/labels.js"></script>
+        <script src="js/leaflet.photon.js"></script>
+        <script src="js/leaflet.markercluster.js"></script>
+
+        <!-- 資料 -->
+        <script src="data/wek3_tut_points_19.js"></script>
+        <script src="data/week2_tut_point_20.js"></script>
+        <script src="data/module1_with_coordinates_21.js"></script>
+
+        <script>
+        (function () {
+            // ==== 修正 1：不再 fitBounds 到整個地球，改以香港為中心 ====
+            var map = L.map('map', {
+                zoomControl: false,
+                maxZoom: 28,
+                minZoom: 1,
+                center: [22.286, 113.928],
+                zoom: 13
+            });
+
+            try { new L.Hash(map); } catch (e) { console.warn('L.Hash 未載入:', e); }
+
+            map.attributionControl.setPrefix('<a href="https://github.com/qgis2web/qgis2web" target="_blank">qgis2web</a> &middot; <a href="https://leafletjs.com">Leaflet</a> &middot; <a href="https://qgis.org">QGIS</a>');
+
+            var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
+
+            function removeEmptyRowsFromPopupContent(content, feature) {
+                var tempDiv = document.createElement('div');
+                tempDiv.innerHTML = content;
+                var rows = tempDiv.querySelectorAll('tr');
+                for (var i = 0; i < rows.length; i++) {
+                    var td = rows[i].querySelector('td.visible-with-data');
+                    var key = td ? td.id : '';
+                    if (td && td.classList.contains('visible-with-data') && feature.properties[key] == null) {
+                        rows[i].parentNode.removeChild(rows[i]);
+                    }
+                }
+                return tempDiv.innerHTML;
+            }
+
+            function addClassToPopupIfMedia(content, popup) {
+                var tempDiv = document.createElement('div');
+                tempDiv.innerHTML = content;
+                var imgTd = tempDiv.querySelector('td img');
+                if (imgTd) {
+                    var src = imgTd.getAttribute('src');
+                    if (/\.(jpg|jpeg|png|gif|bmp|webp|avif)$/i.test(src)) {
+                        popup._contentNode.classList.add('media');
+                        var img = popup._contentNode.querySelector('td img');
+                        if (img) {
+                            if (img.complete && img.naturalHeight > 0) {
+                                popup.update();
+                            } else {
+                                img.addEventListener('load', function () { popup.update(); });
+                                img.addEventListener('error', function () { popup.update(); });
+                            }
+                        }
+                    } else if (/\.(mp3|wav|ogg|aac)$/i.test(src)) {
+                        var audio = document.createElement('audio');
+                        audio.controls = true;
+                        audio.src = src;
+                        imgTd.parentNode.replaceChild(audio, imgTd);
+                        popup._contentNode.classList.add('media');
+                        setTimeout(function () {
+                            popup.setContent(tempDiv.innerHTML);
+                            popup.update();
+                        }, 10);
+                    } else if (/\.(mp4|webm|ogg|mov)$/i.test(src)) {
+                        var video = document.createElement('video');
+                        video.controls = true;
+                        video.src = src;
+                        video.style.width = "400px";
+                        video.style.height = "300px";
+                        video.style.maxHeight = "60vh";
+                        video.style.maxWidth = "60vw";
+                        imgTd.parentNode.replaceChild(video, imgTd);
+                        popup._contentNode.classList.add('media');
+                        video.addEventListener('loadedmetadata', function () { popup.update(); });
+                        setTimeout(function () {
+                            popup.setContent(tempDiv.innerHTML);
+                            popup.update();
+                        }, 10);
+                    } else {
+                        popup._contentNode.classList.remove('media');
+                    }
+                } else {
+                    popup._contentNode.classList.remove('media');
+                }
+            }
+
+            var zoomControl = L.control.zoom({position: 'topleft'}).addTo(map);
+            var bounds_group = new L.featureGroup([]);
+            function setBounds() {}
+
+            // ===== Image Overlays =====
+            var imgOverlays = [
+                ['pane_9SEA_0','data/9SEA_0.png',[[22.273607952312364,113.89769308407159],[22.300758044667496,113.93413201704129]],400],
+                ['pane_9SEB_1','data/9SEB_1.png',[[22.273666401328807,113.93408524462212],[22.300808410150857,113.9705172786357]],401],
+                ['pane_63D9SE13C00_2','data/63D9SE13C00_2.png',[[22.26823893534846,113.92685292077452],[22.27366830962505,113.93413930605514]],402],
+                ['pane_63D9SE13B00_3','data/63D9SE13B00_3.png',[[22.27366830962505,113.934120611394],[22.279097360112882,113.94140700408703]],403],
+                ['pane_9SED_4','data/9SED_4.png',[[22.246574667863168,113.93413201704129],[22.27371669879668,113.97055697747854]],404],
+                ['pane_9SEC_5','data/9SEC_5.png',[[22.246516297786957,113.89774686844221],[22.273666401328807,113.93417871714662]],405],
+                ['pane_63D9SE13D00_6','data/63D9SE13D00_6.png',[[22.268249970141405,113.93412996017085],[22.27367902133884,113.94141606974974]],406],
+                ['pane_63D9SE13A00_7','data/63D9SE13A00_7.png',[[22.273657271849242,113.92684329169057],[22.27908664550362,113.93412996017085]],407],
+                ['pane_9NWD_8','data/9NWD_8.png',[[22.30063282630422,113.86124016330477],[22.32779099080749,113.89769308407159]],408],
+                ['pane_9SWD_9','data/9SWD_9.png',[[22.246449787223444,113.86136184969186],[22.273607952312364,113.8978005697128]],409],
+                ['pane_9SWB_10','data/9SWB_10.png',[[22.273541351858736,113.86130105348182],[22.300699516681426,113.89774686844221]],410],
+                ['pane_9NEC_11','data/9NEC_11.png',[[22.300699516681426,113.89763921652926],[22.327849597792618,113.93408524462212]],411],
+                ['pane_9NED_12','data/9NED_12.png',[[22.300758044667496,113.93403839982675],[22.327900031316798,113.97047751826544]],412],
+                ['pane_63D9SE6A00_13','data/63D9SE6A00_13.png',[[22.284446496709748,113.89771255019761],[22.289877161598756,113.90500088781394]],413],
+                ['pane_63D9SE8D00_14','data/63D9SE8D00_14.png',[[22.27908664550362,113.93411125972408],[22.284515695281364,113.94139793561807]],414],
+                ['pane_63D9SE4C00_15','data/63D9SE4C00_15.png',[[22.289934026843603,113.94137071336858],[22.295362751682543,113.94865767974535]],415],
+                ['pane_63D9SE8B00_16','data/63D9SE8B00_16.png',[[22.2845049777764,113.93410190516055],[22.289934026843603,113.94138886434231]],416],
+                ['pane_63D9SE1C00_17','data/63D9SE1C00_17.png',[[22.289864809582024,113.897701789918],[22.295295474197015,113.90499041133644]],417],
+                ['pane_63D9SE8C00_18','data/63D9SE8C00_18.png',[[22.279075604744705,113.92683365962723],[22.2845049777764,113.934120611394]],418]
+            ];
+            imgOverlays.forEach(function (o) {
+                map.createPane(o[0]);
+                map.getPane(o[0]).style.zIndex = o[3];
+                var layer = new L.imageOverlay(o[1], o[2], {pane: o[0]});
+                bounds_group.addLayer(layer);
+                map.addLayer(layer);
+            });
+
+            // ===== Layer 1: 红点 =====
+            function pop_wek3_tut_points_19(feature, layer) {
+                var popupContent = '<table>' +
+                    '<tr><td colspan="2">' + (feature.properties['Dot id'] !== null ? autolinker.link(String(feature.properties['Dot id']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['Place'] !== null ? autolinker.link(String(feature.properties['Place']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['Locality'] !== null ? autolinker.link(String(feature.properties['Locality']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['Zone'] !== null ? autolinker.link(String(feature.properties['Zone']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['Easting'] !== null ? autolinker.link(String(feature.properties['Easting']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['Northing'] !== null ? autolinker.link(String(feature.properties['Northing']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['Longitude_WGS84'] !== null ? autolinker.link(String(feature.properties['Longitude_WGS84']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['Latitude_WGS84'] !== null ? autolinker.link(String(feature.properties['Latitude_WGS84']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '</table>';
+                var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+                layer.on('popupopen', function (e) { addClassToPopupIfMedia(content, e.popup); });
+                layer.bindPopup(content, {maxHeight: 400});
+            }
+            function style_wek3_tut_points_19_0() {
+                return {
+                    pane: 'pane_wek3_tut_points_19',
+                    radius: 5.2, opacity: 1, color: 'rgba(128,17,25,1.0)',
+                    dashArray: '', lineCap: 'butt', lineJoin: 'miter', weight: 2.0,
+                    fill: true, fillOpacity: 1, fillColor: 'rgba(219,30,42,1.0)',
+                    interactive: true
+                };
+            }
+            map.createPane('pane_wek3_tut_points_19');
+            map.getPane('pane_wek3_tut_points_19').style.zIndex = 419;
+            map.getPane('pane_wek3_tut_points_19').style['mix-blend-mode'] = 'normal';
+
+            // ==== 修正 2：資料未載入時，不要讓整頁死掉 ====
+            if (typeof json_wek3_tut_points_19 === 'undefined') {
+                console.warn('⚠️ data/wek3_tut_points_19.js 未載入');
+                json_wek3_tut_points_19 = {type: 'FeatureCollection', features: []};
+            }
+            var layer_wek3_tut_points_19 = new L.geoJson(json_wek3_tut_points_19, {
+                attribution: '', interactive: true,
+                dataVar: 'json_wek3_tut_points_19',
+                layerName: 'layer_wek3_tut_points_19',
+                pane: 'pane_wek3_tut_points_19',
+                onEachFeature: pop_wek3_tut_points_19,
+                pointToLayer: function (feature, latlng) {
+                    return L.circleMarker(latlng, style_wek3_tut_points_19_0(feature));
+                }
+            });
+            bounds_group.addLayer(layer_wek3_tut_points_19);
+            map.addLayer(layer_wek3_tut_points_19);
+
+            // ===== Layer 2: 绿点 (cluster) =====
+            function pop_week2_tut_point_20(feature, layer) {
+                var popupContent = '<table>' +
+                    '<tr><td colspan="2">' + (feature.properties['照片流水號'] !== null ? autolinker.link(String(feature.properties['照片流水號']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['box no.'] !== null ? autolinker.link(String(feature.properties['box no.']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['照片總編號'] !== null ? autolinker.link(String(feature.properties['照片總編號']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['指攝日期'] !== null ? autolinker.link(String(feature.properties['指攝日期']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['底片編號'] !== null ? autolinker.link(String(feature.properties['底片編號']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['notes'] !== null ? autolinker.link(String(feature.properties['notes']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['拍攝者'] !== null ? autolinker.link(String(feature.properties['拍攝者']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['經手人'] !== null ? autolinker.link(String(feature.properties['經手人']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['整理日期'] !== null ? autolinker.link(String(feature.properties['整理日期']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['photo_subject'] !== null ? autolinker.link(String(feature.properties['photo_subject']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['place_name'] !== null ? autolinker.link(String(feature.properties['place_name']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['latitude'] !== null ? autolinker.link(String(feature.properties['latitude']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['longitude'] !== null ? autolinker.link(String(feature.properties['longitude']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['location_precision'] !== null ? autolinker.link(String(feature.properties['location_precision']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['location_source'] !== null ? autolinker.link(String(feature.properties['location_source']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['location_note'] !== null ? autolinker.link(String(feature.properties['location_note']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['cleaning_note'] !== null ? autolinker.link(String(feature.properties['cleaning_note']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '</table>';
+                var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+                layer.on('popupopen', function (e) { addClassToPopupIfMedia(content, e.popup); });
+                layer.bindPopup(content, {maxHeight: 400});
+            }
+            function style_week2_tut_point_20_0() {
+                return {
+                    pane: 'pane_week2_tut_point_20',
+                    radius: 5.2, opacity: 1, color: 'rgba(61,128,53,1.0)',
+                    dashArray: '', lineCap: 'butt', lineJoin: 'miter', weight: 2.0,
+                    fill: true, fillOpacity: 1, fillColor: 'rgba(95,220,81,1.0)',
+                    interactive: true
+                };
+            }
+            map.createPane('pane_week2_tut_point_20');
+            map.getPane('pane_week2_tut_point_20').style.zIndex = 420;
+            map.getPane('pane_week2_tut_point_20').style['mix-blend-mode'] = 'normal';
+
+            if (typeof json_week2_tut_point_20 === 'undefined') {
+                console.warn('⚠️ data/week2_tut_point_20.js 未載入');
+                json_week2_tut_point_20 = {type: 'FeatureCollection', features: []};
+            }
+            var layer_week2_tut_point_20 = new L.geoJson(json_week2_tut_point_20, {
+                attribution: '', interactive: true,
+                dataVar: 'json_week2_tut_point_20',
+                layerName: 'layer_week2_tut_point_20',
+                pane: 'pane_week2_tut_point_20',
+                onEachFeature: pop_week2_tut_point_20,
+                pointToLayer: function (feature, latlng) {
+                    return L.circleMarker(latlng, style_week2_tut_point_20_0(feature));
+                }
+            });
+            var cluster_week2_tut_point_20 = new L.MarkerClusterGroup({
+                showCoverageOnHover: false,
+                spiderfyDistanceMultiplier: 2
+            });
+            cluster_week2_tut_point_20.addLayer(layer_week2_tut_point_20);
+            bounds_group.addLayer(layer_week2_tut_point_20);
+            cluster_week2_tut_point_20.addTo(map);
+
+            // ===== Layer 3: 蓝点 (cluster) =====
+            function pop_module1_with_coordinates_21(feature, layer) {
+                var popupContent = '<table>' +
+                    '<tr><td colspan="2">' + (feature.properties['record_no'] !== null ? autolinker.link(String(feature.properties['record_no']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['box_no'] !== null ? autolinker.link(String(feature.properties['box_no']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['photo_no'] !== null ? '<img src="images/' + String(feature.properties['photo_no']).replace(/[\\/:]/g, '_').trim().replace(/'/g, "'").replace(/"/g, '&quot;') + '">' : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['remarks_raw'] !== null ? autolinker.link(String(feature.properties['remarks_raw']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['photo_path'] !== null ? autolinker.link(String(feature.properties['photo_path']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['Location_note'] !== null ? autolinker.link(String(feature.properties['Location_note']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['latitude'] !== null ? autolinker.link(String(feature.properties['latitude']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['longitude'] !== null ? autolinker.link(String(feature.properties['longitude']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['coordinate_source'] !== null ? autolinker.link(String(feature.properties['coordinate_source']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['coordinate_confidence'] !== null ? autolinker.link(String(feature.properties['coordinate_confidence']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['coordinate_note'] !== null ? autolinker.link(String(feature.properties['coordinate_note']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['check'] !== null ? autolinker.link(String(feature.properties['check']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '<tr><td colspan="2">' + (feature.properties['clearing_note'] !== null ? autolinker.link(String(feature.properties['clearing_note']).replace(/'/g, "'").toLocaleString()) : '') + '</td></tr>' +
+                    '</table>';
+                var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+                layer.on('popupopen', function (e) { addClassToPopupIfMedia(content, e.popup); });
+                layer.bindPopup(content, {maxHeight: 400});
+            }
+            function style_module1_with_coordinates_21_0() {
+                return {
+                    pane: 'pane_module1_with_coordinates_21',
+                    radius: 5.2, opacity: 1, color: 'rgba(61,128,53,1.0)',
+                    dashArray: '', lineCap: 'butt', lineJoin: 'miter', weight: 2.0,
+                    fill: true, fillOpacity: 1, fillColor: 'rgba(0,237,251,1.0)',
+                    interactive: true
+                };
+            }
+            map.createPane('pane_module1_with_coordinates_21');
+            map.getPane('pane_module1_with_coordinates_21').style.zIndex = 421;
+            map.getPane('pane_module1_with_coordinates_21').style['mix-blend-mode'] = 'normal';
+
+            if (typeof json_module1_with_coordinates_21 === 'undefined') {
+                console.warn('⚠️ data/module1_with_coordinates_21.js 未載入');
+                json_module1_with_coordinates_21 = {type: 'FeatureCollection', features: []};
+            }
+            var layer_module1_with_coordinates_21 = new L.geoJson(json_module1_with_coordinates_21, {
+                attribution: '', interactive: true,
+                dataVar: 'json_module1_with_coordinates_21',
+                layerName: 'layer_module1_with_coordinates_21',
+                pane: 'pane_module1_with_coordinates_21',
+                onEachFeature: pop_module1_with_coordinates_21,
+                pointToLayer: function (feature, latlng) {
+                    return L.circleMarker(latlng, style_module1_with_coordinates_21_0(feature));
+                }
+            });
+            var cluster_module1_with_coordinates_21 = new L.MarkerClusterGroup({
+                showCoverageOnHover: false,
+                spiderfyDistanceMultiplier: 2
+            });
+            cluster_module1_with_coordinates_21.addLayer(layer_module1_with_coordinates_21);
+            bounds_group.addLayer(layer_module1_with_coordinates_21);
+            cluster_module1_with_coordinates_21.addTo(map);
+
+            setBounds();
+
+            // ===== 標籤綁定 =====
+            var i = 0;
+            layer_wek3_tut_points_19.eachLayer(function (layer) {
+                layer.bindTooltip(
+                    (layer.feature.properties['Locality'] !== null
+                        ? '<div style="color:#323232;font-size:6pt;font-weight:bold;font-style:italic;font-family:\'Times New Roman\',sans-serif;">' + layer.feature.properties['Locality'] + '</div>'
+                        : ''),
+                    {permanent: true, offset: [0, -16], className: 'css_wek3_tut_points_19'}
+                );
+                labels.push(layer);
+                totalMarkers += 1;
+                layer.added = true;
+                addLabel(layer, i);
+                i++;
+            });
+
+            i = 0;
+            layer_week2_tut_point_20.eachLayer(function (layer) {
+                layer.bindTooltip(
+                    (layer.feature.properties['place_name'] !== null
+                        ? '<div style="color:#323232;font-size:6pt;font-weight:bold;font-style:italic;font-family:\'Times New Roman\',sans-serif;">' + layer.feature.properties['place_name'] + '</div>'
+                        : ''),
+                    {permanent: true, offset: [0, -16], className: 'css_week2_tut_point_20'}
+                );
+                labels.push(layer);
+                totalMarkers += 1;
+                layer.added = true;
+                addLabel(layer, i);
+                i++;
+            });
+
+            i = 0;
+            layer_module1_with_coordinates_21.eachLayer(function (layer) {
+                layer.bindTooltip(
+                    (layer.feature.properties['Location_note'] !== null
+                        ? '<div style="color:#323232;font-size:6pt;font-weight:bold;font-style:italic;font-family:\'Times New Roman\',sans-serif;">' + layer.feature.properties['Location_note'] + '</div>'
+                        : ''),
+                    {permanent: true, offset: [0, -16], className: 'css_module1_with_coordinates_21'}
+                );
+                labels.push(layer);
+                totalMarkers += 1;
+                layer.added = true;
+                addLabel(layer, i);
+                i++;
+            });
+
+            L.ImageOverlay.include({
+                getBounds: function () { return this._bounds; }
+            });
+
+            resetLabels([layer_wek3_tut_points_19, layer_week2_tut_point_20, layer_module1_with_coordinates_21]);
+            map.on("zoomend", function () {
+                resetLabels([layer_wek3_tut_points_19, layer_week2_tut_point_20, layer_module1_with_coordinates_21]);
+            });
+            map.on("layeradd", function () {
+                resetLabels([layer_wek3_tut_points_19, layer_week2_tut_point_20, layer_module1_with_coordinates_21]);
+            });
+            map.on("layerremove", function () {
+                resetLabels([layer_wek3_tut_points_19, layer_week2_tut_point_20, layer_module1_with_coordinates_21]);
+            });
+
+            // 保險：資料都載入後再 fitBounds 到實際內容範圍
+            try {
+                if (bounds_group.getLayers().length > 0) {
+                    var b = bounds_group.getBounds();
+                    if (b.isValid()) {
+                        map.fitBounds(b, {padding: [20, 20]});
+                    }
+                }
+            } catch (e) { console.warn('fitBounds 失敗', e); }
+
+        })();
+        </script>
+    </body>
+</html>
